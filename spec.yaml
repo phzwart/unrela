@@ -1,0 +1,114 @@
+version: "0.3.1"
+abstract_mode: true
+description: "A computable mereotopological framework for 2D/3D discrete spatial analysis."
+
+# ---------------------------------------------------------------------
+# 1. DISCRETE GRID PARAMETERS (The 'Grounding')
+# ---------------------------------------------------------------------
+discrete_topology:
+  connectivity:
+    foreground: 4             # 2D: 4 or 8; 3D: 6, 18, or 26
+    background: 8             # Dual connectivity to ensure stable Euler/Hole counting
+  boundary_convention: "pixel" # Options: pixel (discrete steps) | subpixel (interpolated)
+  homology_model: "cubical"    # Treats pixels/voxels as n-dimensional cubes
+  eps: 1e-9
+
+# ---------------------------------------------------------------------
+# 2. TOPOLOGY CORE (Contact & Invariants)
+# ---------------------------------------------------------------------
+topology:
+  primitives:
+    # RCC-style Contact Calculus
+    - id: C(r1, r2)
+      name: "Contact"
+      logic: "cl(r1) ∩ cl(r2) ≠ ∅"
+    - id: DC(r1, r2)
+      name: "Disconnected"
+      logic: "NOT C(r1, r2)"
+    - id: EC(r1, r2)
+      name: "Externally Connected"
+      logic: "C(r1, r2) AND (int(r1) ∩ int(r2) = ∅)"
+    
+    # Unary Invariants (Computable via Cubical Homology)
+    - id: Conn(r)
+      name: "Connected"
+      logic: "Betti_0(r) == 1"
+    - id: Betti_0(r)
+      name: "Component Count"
+      logic: "Maximal connected subsets under foreground_connectivity"
+    - id: Betti_1(r)
+      name: "Hole Count"
+      logic: "1D cycles enclosed under background_connectivity"
+
+# ---------------------------------------------------------------------
+# 3. MEREOLOGY CORE (Part-Whole)
+# ---------------------------------------------------------------------
+mereology:
+  primitives:
+    - id: P(r1, r2)
+      name: "Part Of"
+      logic: "r1 ⊆ r2"
+    - id: PP(r1, r2)
+      name: "Proper Part"
+      logic: "P(r1, r2) AND r1 ≠ r2"
+    - id: EQ(r1, r2)
+      name: "Equals"
+      logic: "r1 == r2"
+    - id: O(r1, r2)
+      name: "Overlaps"
+      logic: "r1 ∩ r2 ≠ ∅"
+    - id: DR(r1, r2)
+      name: "Disjoint"
+      logic: "NOT O(r1, r2)"
+
+# ---------------------------------------------------------------------
+# 4. GEOMETRY FIELDS (Robust Ordering)
+# ---------------------------------------------------------------------
+geometry_fields:
+  operators:
+    - id: SDF(r_target)
+      name: "Signed Distance Function"
+      params: { sign: "inside_negative", metric: "euclidean" }
+    
+    - id: PRECEDENCE(r1, r2, field_ref)
+      name: "Scalar Field Precedence"
+      params:
+        statistic: "median"   # Options: mean | median | quantile
+        quantile: 0.5         # Used if statistic is quantile
+        margin: 1.0           # Physical/Pixel distance buffer
+      logic: "Stat(field_ref | r1) + margin < Stat(field_ref | r2)"
+
+    - id: PROXIMITY(r1, r2)
+      name: "Boundary Distance"
+      params: { threshold: 5.0 }
+      logic: "dist(boundary(r1), boundary(r2)) <= threshold"
+
+# ---------------------------------------------------------------------
+# 5. MODALITY & SCOPE (Error Handling)
+# ---------------------------------------------------------------------
+modality:
+  - id: NECESSARY
+    alias: always
+    scope: "per_instance"     # Structural failure if violated
+    action: "RejectStructure"
+  - id: IMPOSSIBLE
+    alias: never
+    scope: "per_instance"     # Logical failure if present
+    action: "RejectLabel"
+  - id: PROBABLE
+    alias: usually
+    scope: "population"       # Statistical anomaly
+    action: "FlagAnomaly"
+
+# ---------------------------------------------------------------------
+# 6. PATTERN LIBRARY (High-Level Templates)
+# ---------------------------------------------------------------------
+pattern_library:
+  - id: SHELL_OF(r_shell, r_core)
+    definition: "EC(r_shell, r_core) AND P(r_core, ENCLOSED_BY(r_shell))"
+  
+  - id: NESTED_SET(r_outer, r_inner)
+    definition: "PP(r_inner, r_outer) AND DC(boundary(r_inner), boundary(r_outer))"
+
+  - id: RING_ARRANGEMENT(r_elements, r_ref)
+    definition: "Betti_0(r_elements) > 1 AND Stat(SDF(r_ref) | r_elements) ≈ constant"
