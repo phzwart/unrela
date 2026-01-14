@@ -1,0 +1,16 @@
+version: 1.0
+namespace: UnReLa_Core
+description: "Foundational Algebra for Spatial Relation Logic"
+
+primitives:
+  objects:
+    - name: Region
+      attributes: [origin, metric_tensor, boundary_rule, principal_axes]
+  unary_functions:
+    measure: [size, centroid, inertia_tensor]
+    topology: [euler_characteristic, betti_numbers]
+    fields: [sdf, gradient_field, thickness]
+  binary_functions:
+    set_logic: [union, intersection, difference]
+    metric: [dist_bb, dist_cc, clearance]
+    alignment: [field_grounding]
